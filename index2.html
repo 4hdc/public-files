@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <title>n8n Live Sync</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body style="font-family: 'Segoe UI', sans-serif; padding: 15px; background-color: #f3f2f1;">
+    <div style="padding: 10px; background: white; border-radius: 4px; border: 1px solid #ccc;">
+        <h3 style="margin-top:0; color: #2b579a;">n8n Sync Active</h3>
+        <p id="status" style="font-size: 12px; color: #666;">Initializing...</p>
+    </div>
+
+    <script>
+        // REPLACE with the n8n webhook that PROCESSES your data
+        const N8N_DATA_WEBHOOK = "https://francescas.app.n8n.cloud/webhook/excel/onchange";
+
+        Office.onReady((info) => {
+            if (info.host === Office.HostType.Excel) {
+                Excel.run(async (context) => {
+                    const sheet = context.workbook.worksheets.getActiveWorksheet();
+                    sheet.onChanged.add(handleChange);
+                    await context.sync();
+                    document.getElementById("status").innerText = "Listening for changes... ✅";
+                });
+            }
+        });
+
+        async function handleChange(event) {
+            await Excel.run(async (context) => {
+                const range = context.workbook.worksheets.getActiveWorksheet().getRange(event.address);
+                range.load("values");
+                await context.sync();
+
+                const payload = {
+                    cell: event.address,
+                    value: range.values[0][0],
+                    timestamp: new Date().toISOString(),
+                    source: "Excel_AddIn"
+                };
+
+                fetch(N8N_DATA_WEBHOOK, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+            });
+        }
+    </script>
+</body>
+</html>
